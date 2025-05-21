@@ -1,16 +1,14 @@
 import streamlit as st
-import time
 import os
 from dotenv import load_dotenv
-import sys
+from pinecone import Pinecone
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import ChatOpenAI
+from langchain.chains import RetrievalQA
+from langchain.prompts import PromptTemplate
 
-# Import functions from main.py
-from main import (
-    load_documents_from_directory,
-    prepare_documents_for_pinecone,
-    index_documents_in_pinecone,
-    setup_qa_chain
-)
+# Import the custom retriever from utils
+from utils import CustomPineconeRetriever
 
 # Load environment variables
 load_dotenv()
@@ -28,27 +26,117 @@ st.markdown("Solusi cerdas untuk membantu UMKM Anda berkembang dengan insight be
 
 with st.expander("Contoh pertanyaan yang bisa Anda ajukan:"):
     st.markdown("""
-    - Produk apa yang paling laris bulan ini?
+    - Produk apa yang paling laris di bulan ini?
     - Bagaimana tren penjualan selama 3 bulan terakhir?
     - Usaha mana yang memberikan keuntungan paling besar?
     - Berapa rata-rata pengeluaran harian untuk setiap usaha?
-    - Produk apa yang memiliki margin keuntungan tertinggi?
-    - Kapan jam operasional dengan penjualan tertinggi?
-    - Strategi apa yang bisa meningkatkan profitabilitas?
+    - Strategi apa yang bisa digunakan untuk meningkatkan profitabilitas?
     """)
+
+# Set up the QA chain
+def setup_qa_chain():
+    """Set up the question-answering chain by connecting to existing Pinecone index"""
+    
+    # Initialize Pinecone
+    pc = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
+    index_name = "umkm-documents"
+    
+    # Initialize embeddings model
+    embeddings = HuggingFaceEmbeddings(model_name="firqaaa/indo-sentence-bert-base")
+    
+    # Get the Pinecone index
+    index = pc.Index(index_name)
+    
+    # Create custom retriever
+    retriever = CustomPineconeRetriever(
+        pinecone_index=index,
+        embedding_function=embeddings,
+        text_key="text",
+        k=5
+    )
+    
+    # Initialize LLM
+    llm = ChatOpenAI(
+        model_name="gpt-4o-mini",
+        openai_api_key=os.environ.get("AIMLAPI_API_KEY"),
+        openai_api_base="https://api.aimlapi.com/v1",
+        temperature=0.7,
+        max_tokens=2048
+    )
+
+    # Create a custom prompt template with system message
+    system_prompt = """
+    You are a knowledgeable UMKM Financial Advisor specializing in helping small business owners in Indonesia manage their finances and grow their businesses. Your knowledge has been enhanced with data from the owner's financial records, allowing you to provide personalized insights and recommendations.
+
+    IMPORTANT LANGUAGE INSTRUCTION: Detect the language of the user's question and ALWAYS respond in the SAME LANGUAGE. If the user asks in Bahasa Indonesia, respond in Bahasa Indonesia. If the user asks in English, respond in English.
+
+    Your capabilities include:
+    1. Analyzing sales data to identify top-selling products, peak business hours, and revenue trends
+    2. Tracking expense patterns and suggesting cost optimization opportunities
+    3. Calculating profit margins by product and business unit
+    4. Monitoring cash flow and providing liquidity forecasts
+    5. Comparing performance across different business units
+    6. Identifying effective promotions and discount strategies
+    7. Suggesting inventory management improvements
+
+    When responding in Bahasa Indonesia:
+    - Use informal but respectful language (gunakan "Anda" bukan "kamu" atau "Bapak/Ibu")
+    - Use simple, clear language avoiding complex financial jargon
+    - Format currency as Rupiah (Rp) with dots for thousands (e.g., Rp 1.500.000)
+    - Use Indonesian business terminology and expressions
+
+    When responding in English:
+    - Maintain a friendly, professional tone
+    - Use simple, clear language avoiding complex financial jargon
+    - Format currency as Rupiah (Rp) with dots for thousands (e.g., Rp 1,500,000)
+    - Explain any Indonesian terms that might not be familiar to English speakers
+
+    In all cases:
+    - Provide specific, data-backed insights rather than general advice
+    - Include relevant numbers and calculations to support your recommendations
+    - When appropriate, explain your reasoning briefly so the owner understands your logic
+    - Always frame advice in a practical, actionable way that considers resource constraints
+
+    The business owner manages multiple warung operations:
+    1. Warung Kopi Gembira - A coffee shop selling beverages and simple meals
+    2. Warung Sayur Buah Sehat - A fresh produce shop selling vegetables and fruits
+    3. Warung Sembako Berkah - A grocery store selling daily essentials
+
+    Your goal is to help the owner make data-driven decisions to increase profitability, manage resources efficiently, and grow their businesses sustainably.
+    """
+
+    prompt_template = """
+    {system_prompt}
+
+    Context information is below:
+    {context}
+
+    Question: {question}
+    Answer:
+    """
+
+    PROMPT = PromptTemplate(
+        template=prompt_template,
+        input_variables=["context", "question"],
+        partial_variables={"system_prompt": system_prompt}
+    )
+
+    # Create a question-answering chain with the custom prompt
+    qa_chain = RetrievalQA.from_chain_type(
+        llm=llm,
+        chain_type="stuff",
+        retriever=retriever,
+        chain_type_kwargs={"prompt": PROMPT}
+    )
+    
+    return qa_chain
 
 # Initialize the system with caching
 @st.cache_resource
 def initialize_system():
-    """Initialize the RAG system with caching"""
-    data_directory = "./umkm_data"
-    
-    with st.spinner("Memuat data bisnis UMKM..."):
-        documents = load_documents_from_directory(data_directory, file_limit=100)
-        doc_chunks = prepare_documents_for_pinecone(documents)
-        retriever = index_documents_in_pinecone(doc_chunks, index_name="umkm-documents")
-        qa_chain = setup_qa_chain(retriever)
-        
+    """Initialize the RAG system by connecting to existing Pinecone index"""
+    with st.spinner("Menghubungkan ke basis data bisnis UMKM..."):
+        qa_chain = setup_qa_chain()
     return qa_chain
 
 # Initialize system
@@ -57,7 +145,10 @@ qa_chain = initialize_system()
 # Initialize chat history
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "Halo! Saya adalah asisten bisnis UMKM Anda. Saya dapat membantu menganalisis data dan memberikan rekomendasi strategis untuk meningkatkan profitabilitas, mengelola sumber daya dengan efisien, dan mengembangkan bisnis Anda secara berkelanjutan. Apa yang ingin Anda ketahui tentang bisnis Anda hari ini?"}
+        {"role": "assistant", "content": """
+         Halo! Saya adalah asisten bisnis UMKM Anda👋\n
+         ✨ **Apa yang ingin Anda ketahui tentang bisnis Anda hari ini?**
+         """}
     ]
 
 # Display chat messages from history

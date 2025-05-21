@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import io
 import time
+import random
 from dotenv import load_dotenv
 from langchain_community.document_loaders import DirectoryLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -13,8 +14,8 @@ from pinecone import Pinecone, ServerlessSpec
 from langchain.schema.document import Document
 from langchain.schema.retriever import BaseRetriever
 from typing import List
-import random
 
+from utils import CustomPineconeRetriever
 
 # Load environment variables from .env file
 load_dotenv()
@@ -157,37 +158,6 @@ def prepare_documents_for_pinecone(documents):
     print(f"Created {len(doc_chunks)} document chunks")
     
     return doc_chunks
-
-# Custom retriever
-class CustomPineconeRetriever(BaseRetriever):
-    pinecone_index: object
-    embedding_function: object
-    text_key: str = "text"
-    k: int = 4
-    
-    class Config:
-        arbitrary_types_allowed = True
-    
-    def _get_relevant_documents(self, query: str) -> List[Document]:
-        # Create query embedding
-        query_embedding = self.embedding_function.embed_query(query)
-        
-        # Query Pinecone
-        results = self.pinecone_index.query(
-            vector=query_embedding,
-            top_k=self.k,
-            include_metadata=True
-        )
-        
-        # Convert results to documents
-        docs = []
-        for match in results["matches"]:
-            metadata = match["metadata"] if match.get("metadata") else {}
-            # Remove the text from metadata as it's the page content
-            text = metadata.pop(self.text_key, "")
-            docs.append(Document(page_content=text, metadata=metadata))
-        
-        return docs
 
 # Index documents in Pinecone
 def index_documents_in_pinecone(doc_chunks, index_name="umkm-documents"):
