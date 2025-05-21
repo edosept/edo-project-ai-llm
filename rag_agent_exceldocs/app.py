@@ -17,31 +17,36 @@ load_dotenv()
 
 # Page configuration
 st.set_page_config(
-    page_title="Sales Assistant",
-    page_icon="💬",
-    layout="centered"  # Changed to centered for chat-like experience
+    page_title="Asisten Bisnis UMKM Indonesia",
+    page_icon="📈",
+    layout="centered"  # Centered for chat-like experience
 )
 
-# Simple header
-st.title("💬 Sales Data Assistant")
+# Customize header with general business growth context
+st.title("📈 Asisten Bisnis UMKM Indonesia")
+st.markdown("Solusi cerdas untuk membantu UMKM Anda berkembang dengan insight berbasis data")
 
-with st.expander("Show example questions"):
+with st.expander("Contoh pertanyaan yang bisa Anda ajukan:"):
     st.markdown("""
-    - What were our top selling products last month?
-    - What were the sales trends over the past quarter?
-    - What products have the highest profit margin?
+    - Produk apa yang paling laris bulan ini?
+    - Bagaimana tren penjualan selama 3 bulan terakhir?
+    - Usaha mana yang memberikan keuntungan paling besar?
+    - Berapa rata-rata pengeluaran harian untuk setiap usaha?
+    - Produk apa yang memiliki margin keuntungan tertinggi?
+    - Kapan jam operasional dengan penjualan tertinggi?
+    - Strategi apa yang bisa meningkatkan profitabilitas?
     """)
 
 # Initialize the system with caching
 @st.cache_resource
 def initialize_system():
     """Initialize the RAG system with caching"""
-    data_directory = "./data"
+    data_directory = "./umkm_data"
     
-    with st.spinner("Loading sales data..."):
+    with st.spinner("Memuat data bisnis UMKM..."):
         documents = load_documents_from_directory(data_directory, file_limit=100)
         doc_chunks = prepare_documents_for_pinecone(documents)
-        retriever = index_documents_in_pinecone(doc_chunks)
+        retriever = index_documents_in_pinecone(doc_chunks, index_name="umkm-documents")
         qa_chain = setup_qa_chain(retriever)
         
     return qa_chain
@@ -52,7 +57,7 @@ qa_chain = initialize_system()
 # Initialize chat history
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "Hi! I'm your sales data assistant. Ask me anything about your sales data."}
+        {"role": "assistant", "content": "Halo! Saya adalah asisten bisnis UMKM Anda. Saya dapat membantu menganalisis data dan memberikan rekomendasi strategis untuk meningkatkan profitabilitas, mengelola sumber daya dengan efisien, dan mengembangkan bisnis Anda secara berkelanjutan. Apa yang ingin Anda ketahui tentang bisnis Anda hari ini?"}
     ]
 
 # Display chat messages from history
@@ -61,7 +66,7 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # User input
-if prompt := st.chat_input("Ask about your sales data..."):
+if prompt := st.chat_input("Tanyakan tentang bisnis Anda..."):
     # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
     
@@ -72,7 +77,7 @@ if prompt := st.chat_input("Ask about your sales data..."):
     # Generate and display assistant response
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
-        with st.spinner("Thinking..."):
+        with st.spinner("Sedang menganalisis data bisnis Anda..."):
             try:
                 full_response = qa_chain.invoke({"query": prompt})
                 answer = full_response["result"]
@@ -83,7 +88,15 @@ if prompt := st.chat_input("Ask about your sales data..."):
                 # Add assistant response to chat history
                 st.session_state.messages.append({"role": "assistant", "content": answer})
             except Exception as e:
-                error_msg = f"Sorry, I encountered an error: {str(e)}"
+                error_msg = f"Maaf, saya mengalami kendala teknis: {str(e)}. Silakan coba lagi dalam beberapa saat."
                 message_placeholder.error(error_msg)
                 st.session_state.messages.append({"role": "assistant", "content": error_msg})
 
+# Add footer
+st.markdown("---")
+st.markdown("""
+💡 **Tips:** 
+- Untuk hasil terbaik, berikan pertanyaan yang spesifik
+- Data-driven insights membantu Anda membuat keputusan bisnis yang lebih baik
+- Analisis data dapat membantu Anda mengidentifikasi peluang pertumbuhan bisnis
+""")

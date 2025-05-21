@@ -190,17 +190,20 @@ class CustomPineconeRetriever(BaseRetriever):
         return docs
 
 # Index documents in Pinecone
-def index_documents_in_pinecone(doc_chunks, index_name="drive-documents"):
+def index_documents_in_pinecone(doc_chunks, index_name="umkm-documents"):
     """Index document chunks in Pinecone vector database"""
     
     # Initialize embeddings model
     print("Initializing embedding model...")
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    # embeddings = HuggingFaceEmbeddings(model_name="firqaaa/indo-sentence-bert-base")
+    # General language context
+    # embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
+    # Indonesian context
+    embeddings = HuggingFaceEmbeddings(model_name="firqaaa/indo-sentence-bert-base")
     
     # Check if index exists, create if not
-    dimension = 384  # Dimension for all-MiniLM-L6-v2
-    # dimension = 768  # Dimension for firqaaa/indo-sentence-bert-base
+    # dimension = 384  # Dimension for all-MiniLM-L6-v2
+    dimension = 768  # Dimension for firqaaa/indo-sentence-bert-base
     
     # List available indexes for debugging
     available_indexes = pc.list_indexes().names()
@@ -230,23 +233,17 @@ def index_documents_in_pinecone(doc_chunks, index_name="drive-documents"):
     # Get the Pinecone index
     index = pc.Index(index_name)
     
-    # Process in much smaller batches - free tier likely has limits
-    batch_size = 10
+    # Process in smaller batches - free tier likely has limits
+    batch_size = 25
     max_retries = 3
     
     print(f"Total chunks to process: {len(doc_chunks)}")
     print(f"Processing in batches of {batch_size}")
     
-    # Create a subset of documents for testing (remove this in production)
-    # For troubleshooting, let's just try a small number first
-    sample_size = min(100, len(doc_chunks))  # Start with just 100 documents for testing
-    doc_chunks_sample = random.sample(doc_chunks, sample_size)
-    print(f"Testing with a sample of {sample_size} documents")
-    
     successful_uploads = 0
     
-    for i in range(0, len(doc_chunks_sample), batch_size):
-        batch = doc_chunks_sample[i:i+batch_size]
+    for i in range(0, len(doc_chunks), batch_size):
+        batch = doc_chunks[i:i+batch_size]
         
         # Convert documents to format expected by Pinecone
         texts = [doc.page_content for doc in batch]
@@ -276,7 +273,7 @@ def index_documents_in_pinecone(doc_chunks, index_name="drive-documents"):
                 # Upsert to Pinecone
                 index.upsert(vectors=vectors)
                 successful_uploads += len(batch)
-                print(f"Batch {i//batch_size + 1}: Successfully uploaded {len(batch)} vectors. Total: {successful_uploads}/{sample_size}")
+                print(f"Batch {i//batch_size + 1}: Successfully uploaded {len(batch)} vectors. Total: {successful_uploads}/{len(doc_chunks)}")
                 
                 # Add a small delay between batches to avoid rate limiting
                 time.sleep(1)
@@ -318,17 +315,43 @@ def setup_qa_chain(retriever):
 
     # Create a custom prompt template with system message
     system_prompt = """
-    You are an AI sales assistant for the company. Your role is to provide accurate, helpful information about sales data, trends, and performance metrics based on the Excel spreadsheets in the company's database.
-    
-    When answering questions:
-    - Always be professional and concise
-    - Reference specific data from the provided context
-    - Compare metrics when relevant (e.g., today vs. yesterday, this week vs. last week)
-    - Highlight significant changes or patterns
-    - Provide actionable insights when possible
-    - Mention the source file and sheet when referring to specific data
-    
-    Use only the information provided in the context to answer questions. If you don't have enough information, say so clearly.
+    You are a knowledgeable UMKM Financial Advisor specializing in helping small business owners in Indonesia manage their finances and grow their businesses. Your knowledge has been enhanced with data from the owner's financial records, allowing you to provide personalized insights and recommendations.
+
+    IMPORTANT LANGUAGE INSTRUCTION: Detect the language of the user's question and ALWAYS respond in the SAME LANGUAGE. If the user asks in Bahasa Indonesia, respond in Bahasa Indonesia. If the user asks in English, respond in English.
+
+    Your capabilities include:
+    1. Analyzing sales data to identify top-selling products, peak business hours, and revenue trends
+    2. Tracking expense patterns and suggesting cost optimization opportunities
+    3. Calculating profit margins by product and business unit
+    4. Monitoring cash flow and providing liquidity forecasts
+    5. Comparing performance across different business units
+    6. Identifying effective promotions and discount strategies
+    7. Suggesting inventory management improvements
+
+    When responding in Bahasa Indonesia:
+    - Use informal but respectful language (gunakan "Anda" bukan "kamu" atau "Bapak/Ibu")
+    - Use simple, clear language avoiding complex financial jargon
+    - Format currency as Rupiah (Rp) with dots for thousands (e.g., Rp 1.500.000)
+    - Use Indonesian business terminology and expressions
+
+    When responding in English:
+    - Maintain a friendly, professional tone
+    - Use simple, clear language avoiding complex financial jargon
+    - Format currency as Rupiah (Rp) with dots for thousands (e.g., Rp 1,500,000)
+    - Explain any Indonesian terms that might not be familiar to English speakers
+
+    In all cases:
+    - Provide specific, data-backed insights rather than general advice
+    - Include relevant numbers and calculations to support your recommendations
+    - When appropriate, explain your reasoning briefly so the owner understands your logic
+    - Always frame advice in a practical, actionable way that considers resource constraints
+
+    The business owner manages multiple warung operations:
+    1. Warung Kopi Gembira - A coffee shop selling beverages and simple meals
+    2. Warung Sayur Buah Sehat - A fresh produce shop selling vegetables and fruits
+    3. Warung Sembako Berkah - A grocery store selling daily essentials
+
+    Your goal is to help the owner make data-driven decisions to increase profitability, manage resources efficiently, and grow their businesses sustainably.
     """
 
     prompt_template = """
@@ -360,7 +383,7 @@ def setup_qa_chain(retriever):
 # Main function
 def main():
     # Path to your local directory containing Excel files
-    data_directory = "./data"  # Change this to your directory path
+    data_directory = "./umkm_data"  # Change this to your directory path
     
     # Load documents from the local directory
     documents = load_documents_from_directory(data_directory, file_limit=100)
@@ -373,17 +396,6 @@ def main():
     
     # Set up QA chain
     qa_chain = setup_qa_chain(retriever)
-    
-    # Example query function
-    def query_documents(question):
-        return qa_chain.run(question)
-    
-    # Example usage (in a real application, you'd call this from an API endpoint)
-    print("\n--- Example Query ---")
-    question = "How were yesterday's sales results? Was there an increase from the previous day?"
-    print(f"Question: {question}")
-    response = query_documents(question)
-    print(f"Answer: {response}")
 
 if __name__ == "__main__":
     main()
