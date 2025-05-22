@@ -1,4 +1,3 @@
-# utils.py
 from langchain.schema.document import Document
 from langchain.schema.retriever import BaseRetriever
 from typing import List

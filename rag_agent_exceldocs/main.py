@@ -33,10 +33,11 @@ def process_spreadsheet_file(file_path):
     documents = []
     
     try:
-        # Determine file type and process accordingly
-        if file_extension in ['csv', 'txt']:
-            # For CSV files
-            df = pd.read_csv(file_path)
+        # Process based on file type
+        if file_extension in ['csv', 'tsv']:
+            # For CSV/TSV files
+            separator = ',' if file_extension == 'csv' else '\t'
+            df = pd.read_csv(file_path, sep=separator)
             
             # Create a single document with metadata
             header = f"File: {file_name}\n"
@@ -55,18 +56,9 @@ def process_spreadsheet_file(file_path):
             )
             documents.append(doc)
             
-        else:
-            # For Excel-like formats (xlsx, xls, xlsm, ods, etc.)
-            # Choose the appropriate engine based on file type
-            if file_extension == 'xls':
-                engine = 'xlrd'  # For old .xls files
-            elif file_extension in ['xlsx', 'xlsm', 'xlsb']:
-                engine = 'openpyxl'  # For newer Excel formats
-            elif file_extension == 'ods':
-                engine = 'odf'  # For OpenDocument formats
-            else:
-                # Default to openpyxl for unknown formats
-                engine = 'openpyxl'
+        elif file_extension in ['xlsx', 'xls']:
+            # For Excel formats
+            engine = 'xlrd' if file_extension == 'xls' else 'openpyxl'
             
             # Read all sheets from the Excel file
             dfs = pd.read_excel(file_path, sheet_name=None, engine=engine)
@@ -122,7 +114,7 @@ def load_documents_from_directory(directory_path, file_limit=100):
         for file in files:
             # Check if file is a spreadsheet based on extension
             ext = os.path.splitext(file)[1].lower()
-            if ext in ['.xlsx', '.xls', '.xlsm', '.xlsb', '.ods', '.csv', '.tsv']:
+            if ext in ['.xlsx', '.xls', '.csv', '.tsv']:
                 all_files.append(os.path.join(root, file))
     
     # Limit the number of files if needed
