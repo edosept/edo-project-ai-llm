@@ -21,6 +21,7 @@ transformers>=4.30.0
 
 # Web app
 streamlit>=1.27.0
+gradio>=4.0.0
 
 # Document processing
 python-magic>=0.4.27  # For file type detection
