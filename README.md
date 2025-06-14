@@ -1,6 +1,6 @@
 # Welcome to My LLM Sandbox 🏖️
 
-A cozy corner for testing language models, prompts, and random AI ideas.  
+A cozy corner for testing large language models, prompts, and random AI ideas.  
 
 ## Setup (Conda)  
 ```bash  
