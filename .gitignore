@@ -188,4 +188,4 @@ logs/
 debug/
 venv/
 list_dir.py
-data/
+umkm_ai/data/*.xlsx

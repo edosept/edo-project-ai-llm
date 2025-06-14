@@ -1,0 +1,130 @@
+tables:
+  bisnis:
+    schema: umkm
+    columns:
+      - bisnis_id
+      - nama_bisnis
+      - jenis_usaha
+      - alamat
+      - no_telepon
+      - email
+    required_columns:
+      - bisnis_id
+      - nama_bisnis
+      - jenis_usaha
+    transformations: {}
+
+  produk:
+    schema: umkm
+    columns:
+      - produk_id
+      - bisnis_id
+      - kode_produk
+      - nama_produk
+      - harga_beli
+      - harga_jual
+      - stok_saat_ini
+    required_columns:
+      - produk_id
+      - bisnis_id
+      - nama_produk
+    transformations:
+      harga_beli: to_float
+      harga_jual: to_float
+
+  penjualan:
+    schema: umkm
+    columns:
+      - penjualan_id
+      - bisnis_id
+      - nomor_transaksi
+      - tanggal_transaksi
+      - total
+      - metode_pembayaran
+      - status_pembayaran
+    required_columns:
+      - penjualan_id
+      - bisnis_id
+      - nomor_transaksi
+    transformations:
+      tanggal_transaksi: to_datetime
+      total: to_float
+
+  detail_penjualan:
+    schema: umkm
+    columns:
+      - detail_id
+      - penjualan_id
+      - produk_id
+      - kuantitas
+      - harga_satuan
+      - diskon_item
+      - deskripsi_diskon
+    required_columns:
+      - detail_id
+      - penjualan_id
+      - produk_id
+    transformations:
+      kuantitas: to_float
+      harga_satuan: to_float
+      diskon_item: to_float
+
+  pengeluaran:
+    schema: umkm
+    columns:
+      - pengeluaran_id
+      - bisnis_id
+      - tanggal_pengeluaran
+      - kategori
+      - jumlah
+      - deskripsi
+      - metode_pembayaran
+    required_columns:
+      - pengeluaran_id
+      - bisnis_id
+      - kategori
+    transformations:
+      tanggal_pengeluaran: to_datetime
+      jumlah: to_float
+
+  kas_harian:
+    schema: umkm
+    columns:
+      - kas_id
+      - bisnis_id
+      - tanggal
+      - saldo_awal
+      - total_penjualan
+      - total_pengeluaran
+    required_columns:
+      - kas_id
+      - bisnis_id
+      - tanggal
+    transformations:
+      tanggal: to_datetime
+      saldo_awal: to_float
+      total_penjualan: to_float
+      total_pengeluaran: to_float
+
+file_mappings:
+  tbl_bisnis.xlsx: bisnis
+  tbl_produk.xlsx: produk
+  tbl_penjualan.xlsx: penjualan
+  tbl_detail_penjualan.xlsx: detail_penjualan
+  tbl_pengeluaran.xlsx: pengeluaran
+  tbl_kas_harian.xlsx: kas_harian
+
+# Data loading configuration
+load_order:
+  - bisnis
+  - produk
+  - penjualan
+  - detail_penjualan
+  - pengeluaran
+  - kas_harian
+
+# Paths configuration
+paths:
+  data_directory: data
+  log_directory: logs
+  log_file: excel_ingestion.log
